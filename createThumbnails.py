@@ -5,7 +5,7 @@ import math
 size = 64, 64
 
 #path = "../Pictures/skitour+site:gipfelbuch.ch/"
-picturePath = "../Pictures/"
+picturePath = "../Pictures/no_avalanche/"
 folders = os.listdir(picturePath)
 print(folders)
 

@@ -4,11 +4,11 @@ from six.moves import cPickle as pickle
 from six.moves import range
 from tensorflow.contrib.session_bundle import exporter
 
-tf.app.flags.DEFINE_integer('training_iteration', 1000,
-                            'number of training iterations.')
-tf.app.flags.DEFINE_integer('export_version', 1, 'version number of the model.')
-tf.app.flags.DEFINE_string('work_dir', './', 'Working directory.')
-FLAGS = tf.app.flags.FLAGS
+# tf.app.flags.DEFINE_integer('training_iteration', 1000,
+#                             'number of training iterations.')
+# tf.app.flags.DEFINE_integer('export_version', 1, 'version number of the model.')
+# tf.app.flags.DEFINE_string('work_dir', './', 'Working directory.')
+# FLAGS = tf.app.flags.FLAGS
 
 pickle_file = 'avDetect.pickle'
 
@@ -43,12 +43,16 @@ def accuracy(predictions, labels):
 batch_size = 16
 patch_size = 5
 depth = 16
-num_hidden = 256
+num_hidden = 32
 
 graph = tf.Graph()
 
 with graph.as_default():
     # Input data.
+
+    tf_class_dataset = tf.placeholder(
+        tf.float32, shape=(1, image_size, image_size, num_channels))
+    tf_class_labels = tf.placeholder(tf.float32, shape=(1, num_labels))
     tf_train_dataset = tf.placeholder(
         tf.float32, shape=(batch_size, image_size, image_size, num_channels))
     tf_train_labels = tf.placeholder(tf.float32, shape=(batch_size, num_labels))
@@ -86,7 +90,7 @@ with graph.as_default():
     # Training computation.
     logits = model(tf_train_dataset)
     loss = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
+        tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=tf_train_labels))
 
     # Optimizer.
     optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
@@ -94,9 +98,19 @@ with graph.as_default():
     # Predictions for the training, validation, and test data.
     train_prediction = tf.nn.softmax(logits)
     test_prediction = tf.nn.softmax(model(tf_test_dataset))
+    class_prediction = tf.nn.softmax(model(tf_class_dataset))
 
     # Initialize a saver
-    saver = tf.train.Saver(sharded=True)
+    saver = tf.train.Saver(sharded=False, write_version=1)
+    tf.add_to_collection('train_prediction', train_prediction)
+    tf.add_to_collection('test_prediction', test_prediction)
+    tf.add_to_collection('class_prediction', class_prediction)
+    #tf.add_to_collection('loss', loss)
+    #tf.add_to_collection('optimizer', optimizer)
+    tf.add_to_collection('tf_train_dataset', tf_train_dataset)
+    tf.add_to_collection('tf_train_labels', tf_train_labels)
+    tf.add_to_collection('tf_class_dataset', tf_class_dataset)
+    tf.add_to_collection('tf_class_labels', tf_class_labels)
 
 num_steps = 1001
 export_path = "model/"
@@ -116,20 +130,21 @@ with tf.Session(graph=graph) as session:
       print('Minibatch loss at step %d: %f' % (step, l))
       print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
   print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
+  save_path = saver.save(session, export_path+"my_model")
+  print("Model saved in file: %s" % save_path)
 
   # export model
   #
-  print('Exporting trained model to %s' % export_path)
-  model_exporter = exporter.Exporter(saver)
-  model_exporter.init(
-        session.graph.as_graph_def(),
-        named_graph_signatures={
-            'inputs': exporter.generic_signature({'images': tf_train_dataset}),
-            'outputs': exporter.generic_signature({'scores': logits})})
-  model_exporter.export(export_path, tf.constant(FLAGS.export_version), session)
-  print('Done exporting!')
+  # print('Exporting trained model to %s' % export_path)
+  # model_exporter = exporter.Exporter(saver)
+  # model_exporter.init(
+  #       session.graph.as_graph_def(),
+  #       named_graph_signatures={
+  #           'inputs': exporter.generic_signature({'images': tf_train_dataset}),
+  #           'outputs': exporter.generic_signature({'scores': logits})})
+  # model_exporter.export(export_path, tf.constant(FLAGS.export_version), session)
+  # print('Done exporting!')
 
-  #save_path = saver.save(session, export_path+"model.ckpt")
-  #print("Model saved in file: %s" % save_path)
+
 
 
