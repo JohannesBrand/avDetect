@@ -1,5 +1,5 @@
 # avDetect
-image recognition tool based on tensorflow to detect avalanches from images
+image recognition tool based on tensorflow to detect avalanches in images
 
 ## two models:
 
@@ -14,6 +14,6 @@ to run the model:
   - input_graph: path to model from dropbox
   - input_labels: path to labels from dropbox
 
-to retrain the model:
+(training the inception based model from scratch:
 - follow the tensorflow inception retraining tutorial
-- when compiling with bazel use "--copt=-march=native" option
+- when compiling with bazel use the "--copt=-march=native" option)
