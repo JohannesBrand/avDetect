@@ -1,8 +1,10 @@
 import numpy as np
 import tensorflow as tf
+import os
 from six.moves import cPickle as pickle
 from six.moves import range
-from tensorflow.contrib.session_bundle import exporter
+from tensorflow.contrib.tensorboard.plugins import projector
+#from tensorflow.contrib.session_bundle import exporter
 
 # tf.app.flags.DEFINE_integer('training_iteration', 1000,
 #                             'number of training iterations.')
@@ -10,19 +12,22 @@ from tensorflow.contrib.session_bundle import exporter
 # tf.app.flags.DEFINE_string('work_dir', './', 'Working directory.')
 # FLAGS = tf.app.flags.FLAGS
 
+logs_path = 'logs/'
 pickle_file = 'avDetect.pickle'
+num_steps = 1001
+export_path = logs_path #"model/"
 
 with open(pickle_file, 'rb') as f:
   save = pickle.load(f)
-  train_dataset = save['train_dataset']
-  train_labels = save['train_labels']
-  test_dataset = save['test_dataset']
-  test_labels = save['test_labels']
+  org_train_dataset = save['train_dataset']
+  org_train_labels = save['train_labels']
+  org_test_dataset = save['test_dataset']
+  org_test_labels = save['test_labels']
   del save  # hint to help gc free up memory
-  print('Training set', train_dataset.shape, train_labels.shape)
-  print('Test set', test_dataset.shape, test_labels.shape)
+  print('Training set', org_train_dataset.shape, org_train_labels.shape)
+  print('Test set', org_test_dataset.shape, org_test_labels.shape)
 
-image_size = train_dataset.shape[1]
+image_size = org_train_dataset.shape[1]
 num_labels = 2
 num_channels = 1 # grayscale
 
@@ -31,8 +36,8 @@ def reformat(dataset, labels):
     (-1, image_size, image_size, num_channels)).astype(np.float32)
   labels = (np.arange(num_labels) == labels[:,None]).astype(np.float32)
   return dataset, labels
-train_dataset, train_labels = reformat(train_dataset, train_labels)
-test_dataset, test_labels = reformat(test_dataset, test_labels)
+train_dataset, train_labels = reformat(org_train_dataset, org_train_labels)
+test_dataset, test_labels = reformat(org_test_dataset, org_test_labels)
 print('Training set', train_dataset.shape, train_labels.shape)
 print('Test set', test_dataset.shape, test_labels.shape)
 
@@ -91,6 +96,7 @@ with graph.as_default():
     logits = model(tf_train_dataset)
     loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=tf_train_labels))
+    tf.summary.scalar('loss', loss)
 
     # Optimizer.
     optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
@@ -99,6 +105,8 @@ with graph.as_default():
     train_prediction = tf.nn.softmax(logits)
     test_prediction = tf.nn.softmax(model(tf_test_dataset))
     class_prediction = tf.nn.softmax(model(tf_class_dataset))
+
+    summary = tf.summary.merge_all()
 
     # Initialize a saver
     saver = tf.train.Saver(sharded=False, write_version=1)
@@ -112,10 +120,8 @@ with graph.as_default():
     tf.add_to_collection('tf_class_dataset', tf_class_dataset)
     tf.add_to_collection('tf_class_labels', tf_class_labels)
 
-num_steps = 1001
-export_path = "model/"
-
 with tf.Session(graph=graph) as session:
+  summary_writer = tf.summary.FileWriter(logs_path, session.graph)
   tf.initialize_all_variables().run()
 
   print('Initialized')
@@ -127,6 +133,9 @@ with tf.Session(graph=graph) as session:
     _, l, predictions = session.run(
       [optimizer, loss, train_prediction], feed_dict=feed_dict)
     if (step % 50 == 0):
+      summary_str = session.run(summary, feed_dict=feed_dict)
+      summary_writer.add_summary(summary_str, step)
+      summary_writer.flush()
       print('Minibatch loss at step %d: %f' % (step, l))
       print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
   print('Test accuracy: %.1f%%' % accuracy(test_prediction.eval(), test_labels))
