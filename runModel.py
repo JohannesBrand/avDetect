@@ -57,11 +57,11 @@ def create_graph():
 def run_inference_on_image():
     answer = None
 
-    if not tf.gfile.Exists(FLAGS.image_dir):
-        tf.logging.fatal('File does not exist %s', FLAGS.image_dir)
+    if not tf.gfile.Exists(FLAGS.image_file):
+        tf.logging.fatal('File does not exist %s', FLAGS.image_file)
         return answer
 
-    image_data = tf.gfile.FastGFile(FLAGS.image_dir, 'rb').read()
+    image_data = tf.gfile.FastGFile(FLAGS.image_file, 'rb').read()
 
     # Creates graph from saved GraphDef.
     create_graph()
@@ -91,7 +91,7 @@ def main(_):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-      '--image_dir',
+      '--image_file',
       type=str,
       default='test_pics/avalanche/GleitschneelawineActiOn_26.jpg',
       help='Path to image.'
